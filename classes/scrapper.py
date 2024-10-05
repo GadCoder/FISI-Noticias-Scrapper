@@ -24,15 +24,15 @@ class Scrapper:
         soup = self.create_soup(news_url)
         if soup is None:    
             return None
-        news_content = soup.find("div", class_="newsitem_text")
-        return news_content.text
+        news_tittle = soup.find("h1", class_="article_title").find("a").text
+        news_content = soup.find("div", class_="newsitem_text").text
+        return news_tittle, news_content
 
 
     def get_info_from_main_post(self, post):
-        news_title = post.text
         news_url = post.find("a")["href"]
         full_url = f"{self.main_url}/{news_url}"
-        news_content = self.get_news_content(news_url=full_url)
+        news_title, news_content = self.get_news_content(news_url=full_url)
         if news_content is None:
             return None
         news = News(title=news_title, url=full_url, content=news_content)
@@ -40,10 +40,9 @@ class Scrapper:
 
 
     def get_info_from_under_post(self, post):
-        news_title = post.text
         news_url = post["href"]
         full_url = f"{self.main_url}/{news_url}"
-        news_content = self.get_news_content(news_url=full_url)
+        news_title,news_content = self.get_news_content(news_url=full_url)
         if news_content is None:
             return None
         news = News(title=news_title, url=full_url, content=news_content)
@@ -96,10 +95,9 @@ class Scrapper:
             for item in news_items
         ]
         first_post = news_list[0]
-        news_title = first_post.text
         news_url = first_post["href"]
         full_url = f"{self.main_url}/{news_url}"
-        news_content = self.get_news_content(news_url=full_url)
+        news_title, news_content = self.get_news_content(news_url=full_url)
         news = News(title=news_title, url=full_url, content=news_content)
         return news
     
@@ -112,9 +110,8 @@ class Scrapper:
         )
         slides = carousel.find_all("div", class_="slide")
         first_slide = slides[0].find("div", class_="title")
-        news_title = first_slide.text
         news_url = first_slide.find("a")["href"]
         full_url = f"{self.main_url}/{news_url}"
-        news_content = self.get_news_content(news_url=full_url)
+        news_title, news_content = self.get_news_content(news_url=full_url)
         news = News(title=news_title, url=full_url, content=news_content)
         return news
