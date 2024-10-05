@@ -1,47 +1,120 @@
 import requests
+import pandas as pd
 from bs4 import BeautifulSoup
+from fake_useragent import UserAgent
+
 from classes.news import News
-
-
 class Scrapper:
     def __init__(self) -> None:
         self.soup: BeautifulSoup = None
         self.main_url: str = "https://sistemas.unmsm.edu.pe"
+        self.soup: BeautifulSoup | None = self.create_soup(url=self.main_url)
 
-    def create_soup(self):
-        page = requests.get(self.main_url, verify=False)
-        self.soup = BeautifulSoup(page.content, "html.parser")
 
-    def remove_spaces_from_tittle(self, title: str) -> str:
-        trash_characters = [
-            "\n",
-            "\r",
-            "\t",
+    def create_soup(self, url: str):
+        user_agent = UserAgent()
+        page = requests.get(url, verify=False, headers={'User-Agent':user_agent.chrome})
+        if page.status_code == 404:
+            return None
+        soup = BeautifulSoup(page.content, "html.parser")
+        return soup
+
+
+    def get_news_content(self, news_url: str):
+        soup = self.create_soup(news_url)
+        if soup is None:    
+            return None
+        news_content = soup.find("div", class_="newsitem_text")
+        return news_content.text
+
+
+    def get_info_from_main_post(self, post):
+        news_title = post.text
+        news_url = post.find("a")["href"]
+        full_url = f"{self.main_url}/{news_url}"
+        news_content = self.get_news_content(news_url=full_url)
+        if news_content is None:
+            return None
+        news = News(title=news_title, url=full_url, content=news_content)
+        return news
+
+
+    def get_info_from_under_post(self, post):
+        news_title = post.text
+        news_url = post["href"]
+        full_url = f"{self.main_url}/{news_url}"
+        news_content = self.get_news_content(news_url=full_url)
+        if news_content is None:
+            return None
+        news = News(title=news_title, url=full_url, content=news_content)
+        return news
+
+
+    def get_all_news(self):
+        news_list: list[dict] = []
+        under_posts = self.get_under_posts()
+        main_posts = self.get_main_posts()
+        for post in main_posts:
+            news = self.get_info_from_main_post(post)
+            if news is not None:
+                news_list.append(news.to_dict())
+
+        for post in under_posts:
+            news = self.get_info_from_under_post(post)
+            if news is not None:
+                news_list.append(news.to_dict())
+
+        news_df = pd.DataFrame(news_list)
+        return news_df
+
+
+    def get_under_posts(self):
+        news_items = self.soup.find_all("div", class_="mfp_carousel_item")
+        news_list = [
+            item.find("h4", class_="mfp_carousel_title").find("a")
+            for item in news_items
         ]
-        letters = [letter for letter in title if (letter not in trash_characters)]
-        return "".join(letters).strip()
+        return news_list
+    
 
-    def get_last_main_news(self) -> News:
+    def get_main_posts(self):
+        if self.soup is None:
+            return None
         carousel = self.soup.find("div", id="Youdeveloperslider").find(
             "div", class_="elements"
         )
         slides = carousel.find_all("div", class_="slide")
-        first_slide = slides[0].find("div", class_="title")
-        news_title = self.remove_spaces_from_tittle(first_slide.text)
-        news_url = first_slide.find("a")["href"]
-        full_url = f"{self.main_url}/{news_url}"
-        news = News(news_title, full_url)
-        return news
+        return slides
 
-    def check_under_posts(self) -> News:
+
+    def get_latest_under_post(self) -> News:
+        if self.soup is None:
+            return None 
         news_items = self.soup.find_all("div", class_="mfp_carousel_item")
         news_list = [
             item.find("h4", class_="mfp_carousel_title").find("a")
             for item in news_items
         ]
         first_post = news_list[0]
-        news_title = self.remove_spaces_from_tittle(first_post.text)
+        news_title = first_post.text
         news_url = first_post["href"]
         full_url = f"{self.main_url}/{news_url}"
-        news = News(news_title, full_url)
+        news_content = self.get_news_content(news_url=full_url)
+        news = News(title=news_title, url=full_url, content=news_content)
+        return news
+    
+
+    def get_latest_main_post(self) -> News:
+        if self.soup is None:
+            return None
+        carousel = self.soup.find("div", id="Youdeveloperslider").find(
+            "div", class_="elements"
+        )
+        slides = carousel.find_all("div", class_="slide")
+        first_slide = slides[0].find("div", class_="title")
+        news_title = first_slide.text
+        news_url = first_slide.find("a")["href"]
+        full_url = f"{self.main_url}/{news_url}"
+        news_content = self.get_news_content(news_url=full_url)
+        news = News(title=news_title, url=full_url, content=news_content)
         return news
